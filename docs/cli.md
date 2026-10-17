@@ -296,3 +296,74 @@ When adding or changing CLI surface, ask:
   complexity arbitrarily?
 * If it's a debug command, is it clearly best-effort and not silently becoming
   a stable dependency?
+
+---
+
+## QR Code Authentication
+
+The `--qr` flag displays a QR code for authentication URLs during login.
+
+### Behavior
+
+- **Tailscale servers**: Displays URL-only QR code (backward compatible)
+- **Headscale/Custom servers**: Displays JSON payload QR code
+
+### JSON QR Payload Structure
+
+For headscale and custom control servers, the QR code contains:
+
+```json
+{
+  "type": "headscale-registration",
+  "version": "1",
+  "auth_id": "hskey-authreq-<id>",
+  "server_url": "https://<control-server-url>"
+}
+```
+
+**Note:** The `expires_at` field is not included as expiry data is not available at the CLI layer.
+
+### Usage Examples
+
+```bash
+# Tailscale server (URL QR)
+tailscale login --qr
+
+# Headscale server (JSON QR)
+tailscale login --login-server=https://headscale.example.com --qr
+
+# Custom control server (JSON QR)
+tailscale login --login-server=https://custom.server.net --qr
+
+# QR format options
+tailscale login --qr --qr-format=small
+tailscale login --qr --qr-format=large
+tailscale login --qr --qr-format=ascii
+```
+
+### QR Format Options
+
+The `--qr-format` flag controls the terminal QR code display:
+
+- `auto`: Automatically detect best format (default)
+- `ascii`: ASCII-only characters (most compatible)
+- `large`: Large blocks (best readability)
+- `small`: Compact display
+
+### Troubleshooting
+
+**QR code not displaying:**
+- Ensure terminal supports Unicode (use `--qr-format=ascii` if not)
+- Check terminal size (QR codes need space)
+- Verify build includes QR code support
+
+**JSON QR not working:**
+- Feature only applies to non-Tailscale control servers
+- Tailscale servers continue using URL QR codes
+- If JSON generation fails, fallback to URL QR is automatic
+
+**Mobile app scanning issues:**
+- Ensure mobile app supports JSON QR payload format
+- Use URL QR (Tailscale servers) for maximum compatibility
+- Check QR code size and quality (use `--qr-format=large`)
+

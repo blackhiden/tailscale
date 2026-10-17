@@ -96,7 +96,7 @@ func newUpFlagSet(goos string, upArgs *upArgsT, cmd string) *flag.FlagSet {
 	// When adding new flags, prefer to put them under "tailscale set" instead
 	// of here. Setting preferences via "tailscale up" is deprecated.
 	if buildfeatures.HasQRCodes {
-		upf.BoolVar(&upArgs.qr, "qr", false, "show QR code for login URLs")
+		upf.BoolVar(&upArgs.qr, "qr", false, "show QR code for login URLs (JSON format for headscale/custom servers, URL format for Tailscale)")
 		upf.StringVar(&upArgs.qrFormat, "qr-format", string(qrcodes.FormatAuto), fmt.Sprintf("QR code formatting (%s, %s, %s, %s)", qrcodes.FormatAuto, qrcodes.FormatASCII, qrcodes.FormatLarge, qrcodes.FormatSmall))
 	}
 	upf.StringVar(&upArgs.authKeyOrFile, "auth-key", "", `node authorization key; if it begins with "file:", then it's a path to a file containing the authkey`)
@@ -802,12 +802,37 @@ func runUp(ctx context.Context, cmd string, args []string, upArgs upArgsT) (retE
 					}
 				} else {
 					fmt.Fprintf(Stderr, "\nTo authenticate, visit:\n\n\t%s\n\n", authURL)
-					if upArgs.qr && buildfeatures.HasQRCodes {
-						_, err := qrcodes.Fprintln(Stderr, qrcodes.Format(upArgs.qrFormat), authURL)
+				if upArgs.qr && buildfeatures.HasQRCodes {
+					// Detect server type and display appropriate QR code
+					var qrContent string
+					if isHeadscaleOrCustomServer(authURL) && isRegistrationURL(authURL) {
+						// Try to get JSON QR from headscale API
+						jsonQR, err := buildRegistrationQR(authURL)
+						if err != nil {
+							// API call failed - fallback to URL QR
+							log.Printf("Failed to get JSON QR from API: %v, falling back to URL QR", err)
+							qrContent = authURL
+						} else if jsonQR == "" {
+							// API returned empty (404/405) - server doesn't support this endpoint
+							// Don't display QR at all, just show URL
+							qrContent = "" // Empty = skip QR display
+						} else {
+							// Success - got JSON payload from API
+							qrContent = jsonQR
+						}
+					} else {
+						// Display URL QR for: Tailscale (backward compatible), OAuth/OIDC flows, unknown formats
+						qrContent = authURL
+					}
+
+					// Only display QR if we have content
+					if qrContent != "" {
+						_, err := qrcodes.Fprintln(Stderr, qrcodes.Format(upArgs.qrFormat), qrContent)
 						if err != nil {
 							log.Print(err)
 						}
 					}
+				}
 				}
 			}
 		}
