@@ -61,3 +61,4 @@ client/web/build/assets
 fbstatus
 gafpush
 session.md
+*.md
