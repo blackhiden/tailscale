@@ -802,29 +802,37 @@ func runUp(ctx context.Context, cmd string, args []string, upArgs upArgsT) (retE
 					}
 				} else {
 					fmt.Fprintf(Stderr, "\nTo authenticate, visit:\n\n\t%s\n\n", authURL)
-					if upArgs.qr && buildfeatures.HasQRCodes {
-						// Detect server type and display appropriate QR code
-						var qrContent string
-						if isHeadscaleOrCustomServer(authURL) {
-							// Display JSON QR for headscale/custom servers
-							jsonQR, err := buildRegistrationQR(authURL)
-							if err != nil {
-								// Fallback to URL QR if JSON generation fails
-								log.Printf("Failed to generate JSON QR: %v, falling back to URL QR", err)
-								qrContent = authURL
-							} else {
-								qrContent = jsonQR
-							}
-						} else {
-							// Display URL QR for Tailscale (backward compatible)
+				if upArgs.qr && buildfeatures.HasQRCodes {
+					// Detect server type and display appropriate QR code
+					var qrContent string
+					if isHeadscaleOrCustomServer(authURL) && isRegistrationURL(authURL) {
+						// Try to get JSON QR from headscale API
+						jsonQR, err := buildRegistrationQR(authURL)
+						if err != nil {
+							// API call failed - fallback to URL QR
+							log.Printf("Failed to get JSON QR from API: %v, falling back to URL QR", err)
 							qrContent = authURL
+						} else if jsonQR == "" {
+							// API returned empty (404/405) - server doesn't support this endpoint
+							// Don't display QR at all, just show URL
+							qrContent = "" // Empty = skip QR display
+						} else {
+							// Success - got JSON payload from API
+							qrContent = jsonQR
 						}
+					} else {
+						// Display URL QR for: Tailscale (backward compatible), OAuth/OIDC flows, unknown formats
+						qrContent = authURL
+					}
 
+					// Only display QR if we have content
+					if qrContent != "" {
 						_, err := qrcodes.Fprintln(Stderr, qrcodes.Format(upArgs.qrFormat), qrContent)
 						if err != nil {
 							log.Print(err)
 						}
 					}
+				}
 				}
 			}
 		}
