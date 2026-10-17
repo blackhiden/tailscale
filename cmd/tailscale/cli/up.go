@@ -96,7 +96,7 @@ func newUpFlagSet(goos string, upArgs *upArgsT, cmd string) *flag.FlagSet {
 	// When adding new flags, prefer to put them under "tailscale set" instead
 	// of here. Setting preferences via "tailscale up" is deprecated.
 	if buildfeatures.HasQRCodes {
-		upf.BoolVar(&upArgs.qr, "qr", false, "show QR code for login URLs")
+		upf.BoolVar(&upArgs.qr, "qr", false, "show QR code for login URLs (JSON format for headscale/custom servers, URL format for Tailscale)")
 		upf.StringVar(&upArgs.qrFormat, "qr-format", string(qrcodes.FormatAuto), fmt.Sprintf("QR code formatting (%s, %s, %s, %s)", qrcodes.FormatAuto, qrcodes.FormatASCII, qrcodes.FormatLarge, qrcodes.FormatSmall))
 	}
 	upf.StringVar(&upArgs.authKeyOrFile, "auth-key", "", `node authorization key; if it begins with "file:", then it's a path to a file containing the authkey`)
@@ -803,7 +803,24 @@ func runUp(ctx context.Context, cmd string, args []string, upArgs upArgsT) (retE
 				} else {
 					fmt.Fprintf(Stderr, "\nTo authenticate, visit:\n\n\t%s\n\n", authURL)
 					if upArgs.qr && buildfeatures.HasQRCodes {
-						_, err := qrcodes.Fprintln(Stderr, qrcodes.Format(upArgs.qrFormat), authURL)
+						// Detect server type and display appropriate QR code
+						var qrContent string
+						if isHeadscaleOrCustomServer(authURL) {
+							// Display JSON QR for headscale/custom servers
+							jsonQR, err := buildRegistrationQR(authURL)
+							if err != nil {
+								// Fallback to URL QR if JSON generation fails
+								log.Printf("Failed to generate JSON QR: %v, falling back to URL QR", err)
+								qrContent = authURL
+							} else {
+								qrContent = jsonQR
+							}
+						} else {
+							// Display URL QR for Tailscale (backward compatible)
+							qrContent = authURL
+						}
+
+						_, err := qrcodes.Fprintln(Stderr, qrcodes.Format(upArgs.qrFormat), qrContent)
 						if err != nil {
 							log.Print(err)
 						}
