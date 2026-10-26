@@ -57,6 +57,20 @@ If your distro has conventions that preclude the use of
 `build_dist.sh`, please do the equivalent of what it does in your
 distro's way, so that bug reports contain useful version information.
 
+## Releases
+
+When a GitHub Release is published, the
+[`release` workflow](.github/workflows/release.yml) automatically:
+
+* Builds release packages (`.tgz`, `.deb`, `.rpm`) for every supported
+  distribution and architecture via `./tool/go run ./cmd/dist build all`, and
+  attaches them to the release.
+* Builds and pushes the multi-platform container image (`linux/amd64`,
+  `linux/arm64`) to `ghcr.io`.
+
+The set of valid OS/architecture/package-type combinations is defined in
+[`release/dist/unixpkgs/targets.go`](release/dist/unixpkgs/targets.go).
+
 ## Bugs
 
 Please file any issues about this code or the hosted service on
